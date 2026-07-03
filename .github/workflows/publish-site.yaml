@@ -12,32 +12,65 @@ jobs:
     runs-on: ubuntu-latest
     environment: github-pages
     steps:
+      # Checkout THIS repo (wamp-site-gen) - provides the favicons overlaid onto
+      # the published site below.
       - uses: actions/checkout@v5
 
+      # Checkout the spec+website SOURCE (wamp-proto). This is a PUBLIC repo, so a
+      # plain checkout clones it with the ambient token - no deploy key needed. The
+      # former `ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}` has been dropped (that
+      # 4-year-old deploy-key secret can now be deleted).
       - uses: actions/checkout@v5
         with:
           repository: wamp-proto/wamp-proto
-          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
           path: wamp-proto
 
-      - uses: actions/setup-python@v3
-        with:
-          python-version: '3.9'
-          cache: 'pip'
+      # The spec+website build was migrated from `make` to `just`+`uv` in
+      # wamp-proto#553; the steps below mirror the proven-green PR workflow
+      # `wamp-proto/.github/workflows/build-and-test.yml` (and the wamp-proto#568
+      # deploy fix) so the publish path uses the same toolchain. Previously this job
+      # ran `make build` on the wamp-proto checkout, but that target was removed by
+      # the migration -> every dispatched publish failed (wamp-site-gen#3).
+      - name: Set Environment Variables
+        run: |
+          echo "PATH=$HOME/.local/bin/:$PATH" >> $GITHUB_ENV
+          echo "PATH=$HOME/.cargo/bin/:$PATH" >> $GITHUB_ENV
+          echo "WAMP_BUILD_ID=$(date -u "+%Y%m%d")-$(git -C wamp-proto rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - run: export PATH=$PATH:$HOME/.local/bin
-      - run: export WAMP_BUILD_ID="$(date -u "+%Y%m%d")-$(git rev-parse --short ${{ github.event.client_payload.commit_sha }})"
-      - run: sudo apt update
-      - run: sudo apt install -y xml2rfc libxml2-utils libenchant-2-2 enscript weasyprint libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0 python3-cffi python3-brotli
-      - run: pip install -r requirements.txt
+      - name: Install OS Packages
+        run: |
+          sudo apt update
+          sudo apt install -y libcairo2-dev libenchant-2-2 libharfbuzz0b libpango1.0-dev libpangoft2-1.0-0 libxml2-utils
+          sudo apt install -y enscript mmark weasyprint
+          # imagemagick provides `convert`, used by `just optimize-images` to
+          # generate docs/_static/img/favicon.ico from favicon.svg
+          sudo apt install -y imagemagick
+
+      - name: Setup Toolchain I (Just, UV)
+        run: |
+          # Install Just direct-from-upstream (see: https://just.systems/man/en/pre-built-binaries.html)
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --tag 1.42.3 --force --to $HOME/.local/bin/
+          which just
+          just --version
+
+          # Install UV direct-from-upstream (see: https://docs.astral.sh/uv/getting-started/installation/#standalone-installer)
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          which uv
+          uv --version
+
+      - name: Setup Toolchain II (Python venv, Python dependencies)
         working-directory: ./wamp-proto
-      - run: pip install 'weasyprint>=53.0'
-      - run: wget https://github.com/mmarkdown/mmark/releases/download/v2.2.25/mmark_2.2.25_linux_amd64.tgz
-      - run: tar xvzf mmark_2.2.25_linux_amd64.tgz
-      - run: rm -f ./mmark*.tgz
-      - run: sudo cp ./mmark /usr/local/bin/
-      - run: make build
+        run: |
+          # Use Just to set up the Python venv, then install Python dependencies
+          just create
+          just install
+
+      - name: Build Spec and Website
         working-directory: ./wamp-proto
+        run: |
+          # build Sphinx-based website; build spec (RFC) in HTML, TXT and PDF -> ./dist
+          just build
+
       - run: mv ./wamp-proto/dist/_graphics ./wamp-proto/dist/graphics
       - run: mv ./wamp-proto/dist/_images ./wamp-proto/dist/images
       - run: mv ./wamp-proto/dist/_sources ./wamp-proto/dist/sources
