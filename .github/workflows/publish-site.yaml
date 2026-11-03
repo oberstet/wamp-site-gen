@@ -24,6 +24,10 @@ jobs:
         with:
           repository: wamp-proto/wamp-proto
           path: wamp-proto
+          # wamp-proto's justfile imports .cicd/workflow.just (since wamp-proto#574):
+          # without the submodules, `just` refuses to run at all ("could not find
+          # source file for import"). Both submodules (.ai, .cicd) are public (#11).
+          submodules: recursive
 
       # The spec+website build was migrated from `make` to `just`+`uv` in
       # wamp-proto#553; the steps below mirror the proven-green PR workflow
