@@ -14,13 +14,13 @@ jobs:
     steps:
       # Checkout THIS repo (wamp-site-gen) - provides the favicons overlaid onto
       # the published site below.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Checkout the spec+website SOURCE (wamp-proto). This is a PUBLIC repo, so a
       # plain checkout clones it with the ambient token - no deploy key needed. The
       # former `ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}` has been dropped (that
       # 4-year-old deploy-key secret can now be deleted).
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: wamp-proto/wamp-proto
           path: wamp-proto
@@ -88,7 +88,7 @@ jobs:
       - run: cp -r wamp-proto/dist ./
       - run: cp -r favicons/* dist/
       - name: Deploy 🚀
-        uses: JamesIves/github-pages-deploy-action@v4
+        uses: JamesIves/github-pages-deploy-action@fa24774553152dd7873cd16ebd8d959b010c5445 # v4.9.0
         with:
           branch: gh-pages # The branch the action should deploy to.
           folder: dist     # The folder the action should deploy.
